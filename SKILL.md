@@ -8,6 +8,33 @@ origin: Custom + d2l-zh + AAAI 2025 Checklist + PyTorch 2.6/2.7 best practices
 
 A comprehensive toolkit combining 2025 reproducibility standards (AAAI/Nature checklists) with PyTorch 2.6/2.7 features for building robust, efficient, and fully reproducible deep learning research projects.
 
+## Version Compatibility
+
+All features auto-detect your environment and degrade gracefully.
+Run `python scripts/compat.py` for a full compatibility report.
+
+| Component | Minimum | Recommended | Notes |
+|-----------|---------|-------------|-------|
+| Python | 3.8+ | 3.10+ | 3.9+ for modern type hints |
+| PyTorch | 1.10+ | 2.4+ | Core features work on 1.10; compile needs 2.0; FSDP2 needs 2.4; Mega Cache needs 2.7 |
+| CUDA | — | 11.8+ | CPU-only works but slower |
+| torchmetrics | — | latest | Optional: standardized evaluation |
+| scikit-learn | — | latest | Optional: `stratified_split()` |
+
+**Feature availability by PyTorch version:**
+
+| Feature | Min PyTorch | Fallback |
+|---------|------------|----------|
+| `set_seed` / `get_device` / `Accumulator` | 1.10 | — |
+| `train_one_epoch` (AMP) | 1.10 | AMP disabled |
+| `EMA` / `CosineWarmupScheduler` / `grad_clip` | 1.10 | — |
+| `compile_model()` | 2.0 | Returns uncompiled model |
+| `create_distributed_model("fsdp2")` | 2.4 | Auto-fallback to DDP |
+| Mega Cache (`use_mega_cache=True`) | 2.7 | Silently skipped |
+| `safe_load_checkpoint()` | 1.10 | weights_only=False if < 2.6 |
+| MPS device (Apple Silicon) | 1.12 | Falls back to CPU |
+| `lock_environment()` | 1.10 + pip | — |
+
 ## When to Activate
 
 Activate when the user:

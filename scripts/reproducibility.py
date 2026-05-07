@@ -69,7 +69,7 @@ def get_device(allow_mps: bool = True) -> "torch.device":
         raise ImportError("torch is required")
     if torch.cuda.is_available():
         return torch.device("cuda")
-    if allow_mps and hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+    if allow_mps and _torch_version() >= (1, 12) and hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
         return torch.device("mps")
     return torch.device("cpu")
 
@@ -789,18 +789,46 @@ def create_distributed_model(
         return model.to(torch.device(f'cuda:{device_ids[0]}'))
 
     elif strategy.lower() in ("fsdp", "fsdp2"):
+        if _torch_version() < (2, 4):
+            print(f"[FALLBACK] FSDP2 requires PyTorch >= 2.4 "
+                  f"(installed: {torch.__version__}). Falling back to DDP.")
+            return create_distributed_model(model, "ddp", device_ids=device_ids)
         try:
             from torch.distributed.fsdp import fully_shard
         except ImportError:
-            raise ImportError(
-                "FSDP2 requires PyTorch 2.4+. Install: pip install torch>=2.4"
-            )
-        model = model.to(torch.device(f'cuda:{device_ids[0]}'))
-        model = fully_shard(model, **fsdp_kwargs)
-        return model
+            print("[FALLBACK] torch.distributed.fsdp not available. Falling back to DDP.")
+            return create_distributed_model(model, "ddp", device_ids=device_ids)
+        try:
+            model = model.to(torch.device(f'cuda:{device_ids[0]}'))
+            model = fully_shard(model, **fsdp_kwargs)
+            return model
+        except (RuntimeError, ValueError) as e:
+            print(f"[FALLBACK] FSDP2 init failed (distributed env not set up?): {e}")
+            print("  Falling back to DDP. To use FSDP2, launch with: torchrun train.py")
+            return create_distributed_model(model, "ddp", device_ids=device_ids)
 
     else:
         raise ValueError(f"Unknown distributed strategy: {strategy}")
+
+
+# ── Version helper ──────────────────────────────────────────────
+
+def _torch_version() -> tuple[int, int]:
+    """Return (major, minor) of installed PyTorch, or (0, 0) if not found."""
+    try:
+        import torch
+        parts = torch.__version__.split("+")[0].split(".")
+        return (int(parts[0]), int(parts[1]))
+    except Exception:
+        return (0, 0)
+
+
+def _check_pytorch(min_ver: tuple[int, int], feature: str) -> bool:
+    ok = _torch_version() >= min_ver
+    if not ok:
+        print(f"[SKIP] {feature} requires PyTorch >= {min_ver[0]}.{min_ver[1]} "
+              f"(installed: {'.'.join(map(str, _torch_version()))})")
+    return ok
 
 
 # ── Improvement #6: Advanced torch.compile Patterns ────────────
@@ -835,6 +863,12 @@ def compile_model(
     if torch is None:
         raise ImportError("torch is required")
 
+    # Version gate: torch.compile requires PyTorch >= 2.0
+    if _torch_version() < (2, 0):
+        print(f"[SKIP] torch.compile requires PyTorch >= 2.0 "
+              f"(installed: {torch.__version__}). Returning uncompiled model.")
+        return model
+
     try:
         # Set dynamic compilation stance if supported (2.6+)
         if hasattr(torch.compiler, 'set_stance'):
@@ -851,15 +885,21 @@ def compile_model(
         )
     except TypeError:
         compiled = torch.compile(model, mode=mode, dynamic=dynamic)
+    except Exception as e:
+        print(f"[SKIP] torch.compile failed: {e}. Returning uncompiled model.")
+        return model
 
     # Mega Cache: save after compilation for reuse across machines (2.7+)
     if use_mega_cache:
-        try:
-            from torch.compiler import save_cache_artifacts
-            cache_path = cache_dir or ".compile_cache"
-            save_cache_artifacts(compiled, cache_path)
-        except ImportError:
-            pass  # Mega Cache requires PyTorch 2.7+
+        if _torch_version() >= (2, 7):
+            try:
+                from torch.compiler import save_cache_artifacts
+                cache_path = cache_dir or ".compile_cache"
+                save_cache_artifacts(compiled, cache_path)
+            except Exception as e:
+                print(f"[SKIP] Mega Cache save failed: {e}")
+        else:
+            print("[SKIP] Mega Cache requires PyTorch >= 2.7")
 
     return compiled
 

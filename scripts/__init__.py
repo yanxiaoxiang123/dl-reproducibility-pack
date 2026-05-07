@@ -54,9 +54,14 @@ from .profiling import (
 from .tracking import (
     ExperimentTracker,
 )
+from .compat import check_compatibility, get_pytorch_info, get_python_info
 from .config import Config, load_config, create_default_config
 
 __all__ = [
+    # Compatibility (v3.1)
+    "check_compatibility",
+    "get_pytorch_info",
+    "get_python_info",
     # Reproducibility
     "set_seed",
     "get_device",

@@ -3,9 +3,36 @@
 [![version](https://img.shields.io/badge/version-v3.1.2-blue)](https://github.com/yanxiaoxiang123/dl-reproducibility-pack/releases/tag/v3.1.2)
 [![license](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![tested](https://img.shields.io/badge/tested-RTX%203090%20%C3%972%20%7C%20PyTorch%202.9.1%20%7C%20CUDA%2012.8-brightgreen)]()
+[![python](https://img.shields.io/badge/python-3.8%2B-blue)]()
+[![pytorch](https://img.shields.io/badge/pytorch-1.10%2B-orange)]()
 
 Deep learning reproducibility toolkit for PyTorch and TensorFlow researchers.  
-**v3.1.2** — 实地测试通过：双 RTX 3090，PyTorch 2.9.1，CUDA 12.8，20/20 测试全部通过。
+**v3.2** — 自动检测环境版本，优雅降级。核心功能 PyTorch 1.10+，高级功能 2.0−2.7。
+
+---
+
+## 版本兼容性
+
+运行 `python scripts/compat.py` 查看完整报告。所有功能自动检测环境并优雅降级：
+
+```
+PyTorch 1.10  →  核心功能 (seeds, EMA, CosineWarmup, 检查点)
+PyTorch 2.0   →  + torch.compile
+PyTorch 2.4   →  + FSDP2 (fully_shard)，否则自动降级为 DDP
+PyTorch 2.7   →  + Mega Cache (跨机器编译缓存)
+```
+
+| 你的环境 → | PyTorch 1.10−1.13 | PyTorch 2.0−2.3 | PyTorch 2.4+ |
+|-----------|-------------------|-----------------|--------------|
+| set_seed | ✓ | ✓ | ✓ |
+| EMA / CosineWarmup | ✓ | ✓ | ✓ |
+| save_full_checkpoint | ✓ | ✓ | ✓ |
+| train_one_epoch (AMP) | ✓ | ✓ | ✓ |
+| torch.compile | 跳过 (返回原模型) | ✓ | ✓ |
+| FSDP2 | 回退到 DDP | 回退到 DDP | ✓ |
+| Mega Cache | 跳过 | 跳过 | ✓ (2.7+) |
+| MPS (Apple Silicon) | ✓ (1.12+) | ✓ | ✓ |
+| weights_only 默认 | — | — | ✓ (2.6+) |
 
 ---
 
