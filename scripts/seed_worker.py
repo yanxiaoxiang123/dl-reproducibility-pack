@@ -242,14 +242,136 @@ def pad_sequence_collate(
     return padded, torch.tensor(labels)
 
 
+# ── Improvement #4: Dataset Versioning & Split Management ──────
+
+def save_dataset_split(
+    indices: dict[str, list[int]],
+    output_path: str,
+    metadata: Optional[dict] = None,
+) -> None:
+    """Save train/val/test indices to a JSON file for reproducible splits.
+
+    Per AAAI 2025 reproducibility checklist: pre-define and save fold splits
+    so every experiment uses exactly the same data partitions.
+
+    Args:
+        indices: Dict with keys 'train', 'val', 'test' → list of integer indices
+        output_path: Path to save the split file (e.g. 'splits/fold_0.json')
+        metadata: Optional dict with dataset name, seed, timestamp, etc.
+
+    Example:
+        >>> save_dataset_split(
+        ...     {'train': train_idx, 'val': val_idx, 'test': test_idx},
+        ...     'splits/fold_0.json',
+        ...     metadata={'dataset': 'CIFAR100', 'seed': 42},
+        ... )
+    """
+    import json
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+    data = {"indices": indices}
+    if metadata:
+        data["metadata"] = metadata
+    with open(output_path, "w") as f:
+        json.dump(data, f, indent=2)
+
+
+def load_dataset_split(path: str) -> dict[str, list[int]]:
+    """Load pre-defined dataset split from JSON file.
+
+    Returns:
+        Dict with keys 'train', 'val', 'test' → list of integer indices
+    """
+    import json
+    with open(path) as f:
+        data = json.load(f)
+    return data["indices"]
+
+
+def stratified_split(
+    labels: list[int],
+    val_ratio: float = 0.1,
+    test_ratio: float = 0.1,
+    seed: int = 42,
+) -> dict[str, list[int]]:
+    """Create stratified train/val/test split preserving class distribution.
+
+    Args:
+        labels: List of integer class labels for each sample
+        val_ratio: Fraction of data for validation
+        test_ratio: Fraction of data for test
+        seed: Random seed for reproducibility
+
+    Returns:
+        Dict with keys 'train', 'val', 'test' → list of integer indices
+    """
+    from sklearn.model_selection import train_test_split
+
+    indices = list(range(len(labels)))
+    train_idx, temp_idx = train_test_split(
+        indices, test_size=val_ratio + test_ratio,
+        stratify=labels, random_state=seed,
+    )
+
+    if test_ratio > 0:
+        temp_labels = [labels[i] for i in temp_idx]
+        test_size_relative = test_ratio / (val_ratio + test_ratio)
+        val_idx, test_idx = train_test_split(
+            temp_idx, test_size=test_size_relative,
+            stratify=temp_labels, random_state=seed,
+        )
+        return {"train": train_idx, "val": val_idx, "test": test_idx}
+    return {"train": train_idx, "val": temp_idx}
+
+
+class DatasetVersioning:
+    """Track dataset versions for reproducibility.
+
+    >>> versioning = DatasetVersioning("cifar100", "v1.0")
+    >>> versioning.record(
+    ...     num_samples=50000, num_classes=100,
+    ...     transforms="RandomCrop+HorizontalFlip+Normalize",
+    ... )
+    >>> versioning.save("data/version.json")
+    """
+
+    def __init__(self, name: str, version: str = "1.0"):
+        import time as _time
+        self.name = name
+        self.version = version
+        self.timestamp = _time.strftime("%Y-%m-%dT%H:%M:%S")
+        self.metadata: dict[str, object] = {}
+
+    def record(self, **kwargs) -> None:
+        self.metadata.update(kwargs)
+
+    def to_dict(self) -> dict:
+        return {
+            "name": self.name,
+            "version": self.version,
+            "timestamp": self.timestamp,
+            "metadata": self.metadata,
+        }
+
+    def save(self, path: str) -> None:
+        import json
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        with open(path, "w") as f:
+            json.dump(self.to_dict(), f, indent=2)
+
+
 if __name__ == "__main__":
-    print("seed_worker.py - DataLoader Worker Seeding Utilities")
+    print("seed_worker.py - DataLoader & Dataset Versioning Utilities")
     print("=" * 50)
 
     print("\nWorker seed examples:")
     for worker_id in range(4):
         seed = get_worker_seed(42, worker_id)
         print(f"  Worker {worker_id}: seed = {seed}")
+
+    print("\nDataset versioning example:")
+    ver = DatasetVersioning("cifar100", "v2")
+    ver.record(num_samples=50000, num_classes=100, augmentations="RandAugment")
+    print(ver.to_dict())
 
     print("\nNote: Use with DataLoader:")
     print("  loader = DataLoader(dataset, worker_init_fn=seed_worker)")

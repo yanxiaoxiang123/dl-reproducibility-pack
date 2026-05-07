@@ -1,11 +1,31 @@
-# dl-reproducibility-pack v2
+# dl-reproducibility-pack v3
 
 A deep learning reproducibility toolkit for PyTorch and TensorFlow researchers.  
-**v2** incorporates production patterns from *Dive into Deep Learning (d2l-zh)* — 20 chapters, 2667 lines of idiomatic PyTorch.
+**v3** incorporates 2025 AAAI/Nature reproducibility standards and PyTorch 2.6/2.7 features.
 
 ---
 
-## What's New in v2 (vs v1)
+## What's New in v3 (vs v2)
+
+v3 adds **12 major improvements** based on AAAI 2025 Reproducibility Checklist,
+PyTorch 2.6/2.7 release notes, and industry best practices.
+
+| # | Improvement | What it does |
+|---|-------------|--------------|
+| 1 | **Full RNG Checkpoint** | Save/restore Python, NumPy, PyTorch, and CUDA RNG states for bit-exact resume |
+| 2 | **Two-Run Verification** | `verify_reproducibility()` — assert identical loss curves with same seed |
+| 3 | **Environment Locking** | `lock_environment()` — pip freeze ALL packages + nvidia-smi + hardware |
+| 4 | **Dataset Versioning** | `DatasetVersioning` + `save/load_dataset_split` + `stratified_split` |
+| 5 | **FSDP2 Training** | `create_distributed_model(strategy="fsdp2")` — fully_shard with DTensor |
+| 6 | **Advanced torch.compile** | `compile_model(use_mega_cache=True)` — PyTorch 2.7 Mega Cache + Prologue Fusion |
+| 7 | **Profiling** | `ProfileContext` + `BenchmarkTimer` + `benchmark_model` throughput testing |
+| 8 | **TorchMetrics** | `get_metrics()` — standardized Accuracy/F1/AUROC/Precision/Recall/MeanIoU |
+| 9 | **Experiment Tracking** | `ExperimentTracker` — unified Trackio/MLflow/W&B interface |
+| 10 | **TorchElastic** | `get_elastic_environment()` — fault-tolerant training with auto-recovery |
+| 11 | **Multi-Platform** | `get_device()` supports CUDA + Apple MPS + CPU with auto-detection |
+| 12 | **Safe Loading** | `safe_load_checkpoint()` — PyTorch 2.6+ weights_only=True default |
+
+### What's New in v2 (vs v1)
 
 | Area | v1 | v2 |
 |------|----|----|
@@ -16,13 +36,10 @@ A deep learning reproducibility toolkit for PyTorch and TensorFlow researchers.
 | **Gradient clipping** | Hardcoded in train loop | `grad_clip()` utility + proper AMP unscale flow |
 | **Gradient accumulation** | Not available | Built into `train_one_epoch()` |
 | **Weight init** | Kaiming only | Full catalog: Kaiming, Xavier, Normal, per-activation guide |
-| **Multi-GPU** | Not covered | DataParallel + DDP patterns + `try_gpu()`/`try_all_gpus()` |
+| **Multi-GPU** | Not covered | DataParallel + DDP patterns |
 | **Data augmentation** | Not covered | Train/val transform separation, RandAugment, anti-patterns |
 | **Debugging** | Not covered | Anomaly detection, NaN checking, early stopping, CUDA errors |
 | **Numerical stability** | Not covered | Label smoothing, eps handling, fp16 scaling, gradient norm monitoring |
-| **SKILL.md sections** | 11 topics | 19 topics (+8 new) |
-| **Quick Reference** | 12 idioms | 22 idioms |
-| **Config fields** | 15 | 20 (+min_lr, warmup_steps, momentum, betas, ema_decay) |
 
 ### New imports in v2
 

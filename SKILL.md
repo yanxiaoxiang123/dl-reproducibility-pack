@@ -1,12 +1,12 @@
 ---
 name: dl-reproducibility-pack
-description: Deep learning reproducibility toolkit v2 — idiomatic PyTorch patterns from d2l-zh for robust, efficient, and reproducible training pipelines.
-origin: Custom + d2l-zh (Dive into Deep Learning) + Everything-Claude-Code pytorch-patterns
+description: Deep learning reproducibility toolkit v3 — 2025 AAAI/Nature reproducibility standards, PyTorch 2.7 patterns, FSDP2, experiment tracking, full RNG checkpointing.
+origin: Custom + d2l-zh + AAAI 2025 Checklist + PyTorch 2.6/2.7 best practices
 ---
 
-# Deep Learning Reproducibility Pack
+# Deep Learning Reproducibility Pack v3
 
-A comprehensive toolkit combining reproducibility best practices with idiomatic PyTorch patterns for building robust, efficient, and reproducible deep learning research projects.
+A comprehensive toolkit combining 2025 reproducibility standards (AAAI/Nature checklists) with PyTorch 2.6/2.7 features for building robust, efficient, and fully reproducible deep learning research projects.
 
 ## When to Activate
 
@@ -1064,6 +1064,10 @@ data:
   std: [0.229, 0.224, 0.225]
   augmentation: true
   num_classes: 100
+  val_split: 0.1
+  test_split: 0.0
+  split_seed: 42
+  split_file: null
 
 training:
   batch_size: 128
@@ -1079,17 +1083,29 @@ training:
   mixed_precision: false
   accumulation_steps: 1
   ema_decay: 0.0
+  distributed_strategy: "ddp"
+  compile_model: false
+  compile_mode: "reduce-overhead"
+  compile_dynamic: false
+  use_mega_cache: false
+  elastic_training: false
 
 hardware:
   gpu_ids: [0]
   num_workers: 4
   pin_memory: true
   persistent_workers: true
+  device: "auto"
+  world_size: 1
+  local_rank: 0
 
 logging:
   log_interval: 10
   eval_interval: 1
   save_checkpoint_interval: 10
+  profiler_log_dir: "./profiler_logs"
+  track_backend: "dummy"
+  track_experiment_name: "experiment"
   use_tensorboard: true
   use_wandb: false
   wandb_project: "my-research"
@@ -1164,6 +1180,288 @@ When user asks to make their project reproducible:
 
 ---
 
+## 12. v2 Advanced Features (2025 PyTorch Best Practices)
+
+### 12a. Full RNG State Checkpointing
+
+Save ALL random number generator states for bit-exact training resumption.
+Required by AAAI 2025 Reproducibility Checklist.
+
+```python
+# Save: model + optimizer + scheduler + Python/Numpy/PyTorch/CUDA RNG
+save_full_checkpoint(
+    model, optimizer, "checkpoint_epoch10.pt",
+    epoch=10, global_step=5000, loss=train_loss,
+    scheduler=scheduler, ema=ema, scaler=scaler,
+)
+
+# Load: restores EVERYTHING for exact continuation
+ckpt = load_full_checkpoint(
+    "checkpoint_epoch10.pt", model, optimizer,
+    scheduler=scheduler, ema=ema, scaler=scaler,
+)
+print(f"Resumed from epoch {ckpt['epoch']}, step {ckpt['global_step']}")
+```
+
+---
+
+### 12b. Two-Run Reproducibility Verification
+
+Nature 2025 checklist: run twice with the same seed, assert bit-identical loss curves.
+
+```python
+def train_with_seed(seed):
+    set_seed(seed)
+    losses = []
+    for epoch in range(5):
+        loss = train_one_epoch(model, loader, optimizer, criterion, device)
+        losses.append(loss)
+    return losses
+
+# Verify: should print PASS
+assert verify_reproducibility(train_with_seed, seed=42)
+
+# CI/CD guard: add to your test suite
+def test_reproducibility():
+    assert verify_reproducibility(train_with_seed, seed=0)
+```
+
+---
+
+### 12c. Complete Environment Locking
+
+Capture everything needed to reproduce the exact environment.
+
+```python
+# Generates 3 files:
+#   env_lock/requirements_frozen.txt  — ALL packages with pinned versions
+#   env_lock/environment_info.json     — PyTorch, CUDA, GPU details
+#   env_lock/system_info.txt           — OS, kernel, nvidia-smi
+lock_environment("env_lock")
+```
+
+---
+
+### 12d. Dataset Versioning & Split Management
+
+Pre-define splits and version datasets for reproducible data pipelines.
+
+```python
+from src.seed_worker import (
+    save_dataset_split, load_dataset_split,
+    stratified_split, DatasetVersioning,
+)
+
+# 1. Create and save reproducible stratified split
+split = stratified_split(labels, val_ratio=0.1, test_ratio=0.1, seed=42)
+save_dataset_split(split, "splits/fold_0.json",
+                   metadata={"dataset": "CIFAR100", "seed": 42})
+
+# 2. Record dataset version metadata
+versioning = DatasetVersioning("cifar100", "v2")
+versioning.record(num_samples=50000, augmentations="RandAugment")
+versioning.save("data/version.json")
+
+# 3. Reload exact same split later
+indices = load_dataset_split("splits/fold_0.json")
+train_dataset = Subset(dataset, indices["train"])
+```
+
+---
+
+### 12e. FSDP2 Distributed Training
+
+PyTorch 2.4+ FSDP2 is the 2025 standard for distributed training.
+Uses `fully_shard()` with DTensor — 30% simpler API than FSDP1.
+
+```python
+# Single-machine multi-GPU
+model = create_distributed_model(model, strategy="ddp")
+
+# FSDP2 for large models (PyTorch 2.4+)
+model = create_distributed_model(model, strategy="fsdp2")
+
+# With custom FSDP2 mixed precision policy
+from torch.distributed.fsdp import MixedPrecisionPolicy
+model = create_distributed_model(
+    model, strategy="fsdp2",
+    mixed_precision=MixedPrecisionPolicy(
+        param_dtype=torch.bfloat16,
+        reduce_dtype=torch.float32,
+    ),
+)
+```
+
+---
+
+### 12f. Advanced torch.compile (PyTorch 2.6/2.7)
+
+Leverage the latest compilation features for 30-50% speedup.
+
+```python
+# Basic: reduce-overhead mode (good for training)
+model = compile_model(model, mode="reduce-overhead")
+
+# Advanced: full-graph + dynamic shapes + Mega Cache (2.7+)
+model = compile_model(
+    model,
+    mode="max-autotune",
+    dynamic=True,         # Variable-length inputs
+    fullgraph=True,       # Fail if any op can't be compiled
+    use_mega_cache=True,  # Cross-machine portable cache (2.7+)
+    cache_dir="./compile_cache",
+)
+```
+
+PyTorch 2.6/2.7 features leveraged:
+- `torch.compiler.set_stance("eager_on_recompile")` — fallback to eager on cache miss
+- **Mega Cache** — `save_cache_artifacts()` / `load_cache_artifacts()` for cross-machine reuse
+- **Prologue Fusion** — matmul preamble fused into kernel (automatic in 2.6+)
+
+---
+
+### 12g. Profiling & Benchmarking
+
+Diagnose training bottlenecks with PyTorch Profiler.
+
+```python
+from src.profiling import ProfileContext, BenchmarkTimer, benchmark_model
+
+# 1. Schedule-based profiling (warmup → active → wait)
+with ProfileContext(log_dir="./profiler_logs", active=3) as prof:
+    for batch in train_loader:
+        loss.backward()
+        optimizer.step()
+        prof.step()
+# Open: tensorboard --logdir=./profiler_logs
+
+# 2. Quick CUDA-synchronized micro-benchmark
+timer = BenchmarkTimer()
+with timer:
+    output = model(data)
+print(f"Forward: {timer.elapsed_ms:.2f}ms")
+
+# 3. Full throughput + memory benchmark
+report = benchmark_model(model, input_shape=(128, 3, 224, 224), device=device)
+print(f"Throughput: {report['throughput_imgs_per_sec']:.1f} imgs/sec")
+print(f"GPU Memory: {report['gpu_memory_mb']:.1f} MB")
+```
+
+---
+
+### 12h. TorchMetrics Integration
+
+Standardized metrics eliminate implementation variance across papers.
+
+```python
+from src.reproducibility import get_metrics
+
+# Create TorchMetrics collection — consistent across all experiments
+metrics = get_metrics(
+    ["Accuracy", "F1Score", "AUROC", "Precision", "Recall"],
+    num_classes=100,
+)
+
+# Use in evaluation loop
+for preds, targets in val_loader:
+    for m in metrics.values():
+        m.update(preds, targets)
+
+results = {name: m.compute().item() for name, m in metrics.items()}
+# {'Accuracy': 0.853, 'F1Score': 0.841, 'AUROC': 0.972, ...}
+```
+
+---
+
+### 12i. Experiment Tracking
+
+Unified interface across Trackio, MLflow, and W&B.
+
+```python
+from src.tracking import ExperimentTracker
+
+# Trackio (HuggingFace, July 2025) — lightweight, open-source, local-first
+tracker = ExperimentTracker("trackio", "resnet50_cifar100")
+tracker.log_hyperparams(config.__dict__)
+
+# MLflow — enterprise standard, self-hosted
+tracker = ExperimentTracker("mlflow", "resnet50", tracking_uri="http://mlflow:5000")
+
+# W&B — cloud-hosted, rich visualizations
+tracker = ExperimentTracker("wandb", "resnet50", project="my-research")
+
+for epoch in range(epochs):
+    tracker.log_metrics({"train_loss": loss, "val_acc": acc}, step=epoch)
+tracker.finish()
+```
+
+---
+
+### 12j. TorchElastic Fault-Tolerant Training
+
+Automatically recover from node failures during long training runs.
+
+```python
+from src.reproducibility import get_elastic_environment
+
+env = get_elastic_environment()
+if env["is_elastic"]:
+    print(f"Rank {env['rank']}/{env['world_size']}, "
+          f"Restart #{env['restart_count']}")
+    # Load checkpoint on restart
+    if env["restart_count"] > 0:
+        load_full_checkpoint("latest.pt", model, optimizer)
+
+# Launch with:
+# torchrun --nproc_per_node=4 --max_restarts=3 train.py
+```
+
+---
+
+### 12k. Multi-Platform Hardware Support
+
+Automatic device selection across CUDA, Apple MPS, and CPU.
+
+```python
+# get_device() now supports MPS (Apple Silicon) + CUDA + CPU
+device = get_device()  # cuda > mps > cpu
+
+# Explicit GPU selection (d2l pattern)
+device = try_gpu(0)          # gpu:0 or cpu
+devices = try_all_gpus()     # [gpu:0, gpu:1, ...] or [cpu]
+
+# Config-driven:
+config.hardware.device = "mps"    # Force Apple Silicon
+config.hardware.device = "cuda:1" # Force specific GPU
+```
+
+Supported platforms:
+| Platform | Detection | PyTorch Version |
+|----------|-----------|-----------------|
+| NVIDIA CUDA | `torch.cuda.is_available()` | 1.0+ |
+| Apple MPS | `torch.backends.mps.is_available()` | 1.12+ |
+| CPU | Always available | All |
+
+---
+
+### 12l. Safe Model Loading
+
+Secure checkpoint loading with PyTorch 2.6+ defaults.
+
+```python
+from src.reproducibility import safe_load_checkpoint
+
+# Safe loading (weights_only=True by default in PyTorch 2.6+)
+state = safe_load_checkpoint("model.pt", model)
+
+# Full checkpoint (RNG states) — weights_only=False with warning
+ckpt = load_full_checkpoint("full_checkpoint.pt", model, optimizer)
+# Note: full checkpoints require weights_only=False because they contain
+# non-tensor RNG state objects. Only load from trusted sources.
+```
+
+---
+
 ## Quick Reference: PyTorch Idioms
 
 | Idiom | Description |
@@ -1188,6 +1486,18 @@ When user asks to make their project reproducible:
 | `torch.backends.cudnn.allow_tf32=False` | Disable TF32 for bit-identical results |
 | `label_smoothing` | Prevent overconfident predictions (better calibration) |
 | `CosineWarmupScheduler` | Cosine LR decay with linear warmup — best general schedule |
+| `save_full_checkpoint()` / `load_full_checkpoint()` | Save/restore ALL RNG states for bit-exact resume |
+| `verify_reproducibility()` | Two-run identity test — CI guard for determinism |
+| `lock_environment()` | Capture pip freeze + nvidia-smi + hardware info |
+| `save_dataset_split()` / `load_dataset_split()` | Pre-defined reproducible data splits |
+| `create_distributed_model(strategy="fsdp2")` | FSDP2 with fully_shard (PyTorch 2.4+) |
+| `compile_model(use_mega_cache=True)` | Advanced torch.compile with Mega Cache (PyTorch 2.7) |
+| `ProfileContext` / `benchmark_model()` | Profiler with warmup/active/wait scheduling |
+| `get_metrics(["Accuracy","F1Score"])` | TorchMetrics — standardized evaluation |
+| `ExperimentTracker("trackio")` | Unified tracking (Trackio/MLflow/W&B) |
+| `get_elastic_environment()` | Detect TorchElastic for fault-tolerant training |
+| `get_device(allow_mps=True)` | Multi-platform: CUDA > MPS > CPU |
+| `safe_load_checkpoint(path, model)` | Secure loading with PyTorch 2.6+ weights_only default |
 
 ---
 
@@ -1210,6 +1520,16 @@ When user asks to make their project reproducible:
 - **Select weight init based on activation**: Kaiming for ReLU, Xavier for Tanh/Sigmoid
 - **Use Accumulator class** for clean metric tracking — cleaner than raw float variables
 - **Normalize loss by `accumulation_steps`** when using gradient accumulation
+- **Save full RNG state in checkpoints** — Python, NumPy, PyTorch, and CUDA RNG
+- **Run two-run verification** — Assert identical loss curves with same seed as a CI check
+- **Lock the full environment** — pip freeze ALL packages, not just direct dependencies
+- **Pre-define and save dataset splits** — Never rely on random split at runtime
+- **Use TorchMetrics for evaluation** — Eliminates implementation variance across papers
+- **Profile before scaling** — Use ProfileContext to identify bottlenecks first
+- **Use FSDP2 for large models** — 30% simpler API than FSDP1, better memory
+- **Prefer torch.compile with Mega Cache** — Cross-machine portable compilation cache (2.7+)
+- **Track experiments** — Use ExperimentTracker with Trackio/MLflow/W&B from day one
+- **Use `weights_only=True` for model-only loading** — Default in PyTorch 2.6+
 
 ### Don'ts
 
@@ -1223,6 +1543,9 @@ When user asks to make their project reproducible:
 - **Don't use default weight initialization** without considering activation functions
 - **Don't decay learning rate before warmup completes** — Model needs time to stabilize
 - **Don't forget `model.eval()` before validation** — Dropout/BatchNorm behavior differs
+- **Don't save checkpoints without RNG states** — Makes exact resumption impossible
+- **Don't hand-roll metrics** — Use TorchMetrics for standardized, peer-reviewed implementations
+- **Don't load untrusted checkpoints with `weights_only=False`** — Security risk
 
 ---
 
@@ -1240,6 +1563,21 @@ loader = DataLoader(dataset, batch_size=32, shuffle=True, generator=g)
 
 # Pitfall 3: TF32 on Ampere GPUs
 torch.backends.cudnn.allow_tf32 = False  # For reproducibility
+
+# Pitfall 4: Missing RNG in checkpoint — can't resume exactly
+torch.save({"model": model.state_dict()}, "ckpt.pt")  # Incomplete!
+
+# Pitfall 5: Random split at every run — different data each time
+train_idx, val_idx = train_test_split(...)  # No fixed seed!
+
+# Pitfall 6: Hand-rolled metric vs TorchMetrics — different results
+accuracy = (preds.argmax(1) == targets).float().mean()  # May differ from TorchMetrics
+
+# Pitfall 7: Non-deterministic DataLoader without generator
+loader = DataLoader(dataset, shuffle=True)  # Different order each run!
+
+# Pitfall 8: Not capturing pip transitive dependencies
+# requirements.txt lists only direct deps — different sub-dependency versions
 ```
 
 ---

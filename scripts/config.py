@@ -52,6 +52,9 @@ class DataConfig:
     augmentation: bool = True
     num_classes: int = 100
     val_split: float = 0.1
+    test_split: float = 0.0
+    split_seed: int = 42
+    split_file: Optional[str] = None  # Path to pre-defined split JSON
 
 
 @dataclass
@@ -73,6 +76,12 @@ class TrainingConfig:
     accumulation_steps: int = 1
     label_smoothing: float = 0.0
     ema_decay: float = 0.0
+    distributed_strategy: str = "ddp"  # 'ddp', 'fsdp2', or 'none'
+    compile_model: bool = False
+    compile_mode: str = "reduce-overhead"
+    compile_dynamic: bool = False
+    use_mega_cache: bool = False
+    elastic_training: bool = False  # TorchElastic fault tolerance
 
 
 @dataclass
@@ -82,6 +91,9 @@ class HardwareConfig:
     num_workers: int = 4
     pin_memory: bool = True
     persistent_workers: bool = True
+    device: str = "auto"  # 'auto', 'cuda', 'mps', 'cpu'
+    world_size: int = 1
+    local_rank: int = 0
 
 
 @dataclass
@@ -90,8 +102,12 @@ class LoggingConfig:
     log_interval: int = 10
     eval_interval: int = 1
     save_checkpoint_interval: int = 10
+    profiler_log_dir: str = "./profiler_logs"
+    track_backend: str = "dummy"  # 'trackio', 'mlflow', 'wandb', 'dummy'
+    track_experiment_name: str = "experiment"
+    track_project: Optional[str] = None
     use_tensorboard: bool = True
-    use_wandb: bool = False
+    use_wandb: bool = False  # Deprecated: use track_backend instead
     wandb_project: str = "my-research"
     wandb_entity: Optional[str] = None
 
