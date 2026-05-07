@@ -1,10 +1,26 @@
-# dl-reproducibility-pack v3
+# dl-reproducibility-pack v3.1.2
 
-[![version](https://img.shields.io/badge/version-v3.0.0-blue)](https://github.com/yanxiaoxiang123/dl-reproducibility-pack/releases/tag/v3.0.0)
+[![version](https://img.shields.io/badge/version-v3.1.2-blue)](https://github.com/yanxiaoxiang123/dl-reproducibility-pack/releases/tag/v3.1.2)
 [![license](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
+[![tested](https://img.shields.io/badge/tested-RTX%203090%20%C3%972%20%7C%20PyTorch%202.9.1%20%7C%20CUDA%2012.8-brightgreen)]()
 
 Deep learning reproducibility toolkit for PyTorch and TensorFlow researchers.  
-**v3** — 2025 AAAI/Nature reproducibility standards + PyTorch 2.6/2.7 features.
+**v3.1.2** — 实地测试通过：双 RTX 3090，PyTorch 2.9.1，CUDA 12.8，20/20 测试全部通过。
+
+---
+
+## v3.1.2 Bug 修复 (2026-05-07)
+
+在 `newsstock` conda 环境中实地测试发现的 4 个运行时问题已修复：
+
+| Bug | 现象 | 根因 | 修复 |
+|-----|------|------|------|
+| **#1** `EMA` forward reference | `NameError: name 'EMA' is not defined` | `train_one_epoch()` 的 `ema: Optional[EMA]` 类型注解在 `EMA` 类定义之前被求值 | 添加 `from __future__ import annotations` |
+| **#2** `torch` 模块级装饰器 | `NameError: name 'torch' is not defined` | `@torch.no_grad()` 装饰器在 lazy import (`_get_torch()`) 可用前被执行 | 改为函数内部 `with torch.no_grad():` 上下文管理器 |
+| **#3** `seed_worker.py` 缺少导入 | `NameError: name 'os' is not defined` | v3 新增的 `save_dataset_split()` / `DatasetVersioning` 使用了 `os` 但未导入 | 添加 `import os` |
+| **#4** TorchMetrics 设备不匹配 | `RuntimeError: Expected all tensors to be on the same device` | `get_metrics()` 创建的 metric 对象默认在 CPU，输入在 GPU | 添加 `device` 参数并调 `.to(device)` |
+
+修复后 20/20 测试全部通过，包括 `verify_reproducibility()` 确认两次运行的 loss 曲线逐位一致（max diff = 0.00e+00）。
 
 ---
 

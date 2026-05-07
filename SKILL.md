@@ -1,10 +1,10 @@
 ---
 name: dl-reproducibility-pack
-description: Deep learning reproducibility toolkit v3 — 2025 AAAI/Nature reproducibility standards, PyTorch 2.7 patterns, FSDP2, experiment tracking, full RNG checkpointing.
+description: Deep learning reproducibility toolkit v3.1 — 2025 AAAI/Nature reproducibility standards, PyTorch 2.7 patterns, FSDP2, experiment tracking, full RNG checkpointing.
 origin: Custom + d2l-zh + AAAI 2025 Checklist + PyTorch 2.6/2.7 best practices
 ---
 
-# Deep Learning Reproducibility Pack v3
+# Deep Learning Reproducibility Pack v3.1
 
 A comprehensive toolkit combining 2025 reproducibility standards (AAAI/Nature checklists) with PyTorch 2.6/2.7 features for building robust, efficient, and fully reproducible deep learning research projects.
 
