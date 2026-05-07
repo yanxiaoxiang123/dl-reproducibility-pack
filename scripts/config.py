@@ -60,14 +60,19 @@ class TrainingConfig:
     batch_size: int = 128
     num_epochs: int = 100
     learning_rate: float = 0.001
+    min_lr: float = 0.0
     optimizer: str = "AdamW"
     scheduler: str = "CosineAnnealingLR"
     warmup_epochs: int = 5
+    warmup_steps: int = 0
     weight_decay: float = 0.0001
+    momentum: float = 0.9
+    betas: tuple = (0.9, 0.999)
     gradient_clip_norm: float = 1.0
     mixed_precision: bool = False
     accumulation_steps: int = 1
     label_smoothing: float = 0.0
+    ema_decay: float = 0.0
 
 
 @dataclass

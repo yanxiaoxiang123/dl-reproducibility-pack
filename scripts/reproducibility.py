@@ -14,6 +14,7 @@ Usage:
 Author: dl-reproducibility-pack
 """
 
+import math
 import random
 import os
 import platform
@@ -252,7 +253,7 @@ def log_environment_info(filepath: Optional[str] = None, framework: str = "pytor
     return info
 
 
-# Training loop patterns following pytorch-patterns idioms
+# Training loop patterns following d2l / pytorch-patterns idioms
 def train_one_epoch(
     model: "nn.Module",
     dataloader: "DataLoader",
@@ -260,10 +261,11 @@ def train_one_epoch(
     criterion: "nn.Module",
     device: "torch.device",
     scaler: Optional["torch.amp.GradScaler"] = None,
-    max_grad_norm: float = 1.0,
+    max_grad_norm: Optional[float] = None,
+    accumulation_steps: int = 1,
+    ema: Optional[EMA] = None,
 ) -> float:
-    """
-    Train for one epoch following idiomatic PyTorch patterns.
+    """Train for one epoch following idiomatic PyTorch patterns.
 
     Args:
         model: The neural network model
@@ -272,7 +274,9 @@ def train_one_epoch(
         criterion: Loss function
         device: Device to train on
         scaler: Optional GradScaler for mixed precision
-        max_grad_norm: Gradient clipping threshold
+        max_grad_norm: Gradient clipping threshold (None = skip)
+        accumulation_steps: Simulate larger batch via gradient accumulation
+        ema: Optional EMA instance for weight averaging
 
     Returns:
         Average loss for the epoch
@@ -282,31 +286,41 @@ def train_one_epoch(
         raise ImportError("torch is required")
 
     model.train()
-    total_loss = 0.0
+    metric = Accumulator(2)  # loss_sum, sample_count
+    optimizer.zero_grad(set_to_none=True)
 
     for batch_idx, (data, target) in enumerate(dataloader):
         data, target = data.to(device), target.to(device)
 
-        optimizer.zero_grad(set_to_none=True)
-
         with torch.amp.autocast("cuda", enabled=scaler is not None):
             output = model(data)
-            loss = criterion(output, target)
+            loss = criterion(output, target) / accumulation_steps
 
         if scaler is not None:
             scaler.scale(loss).backward()
-            scaler.unscale_(optimizer)
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=max_grad_norm)
-            scaler.step(optimizer)
-            scaler.update()
         else:
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=max_grad_norm)
-            optimizer.step()
 
-        total_loss += loss.item()
+        if (batch_idx + 1) % accumulation_steps == 0:
+            if max_grad_norm is not None:
+                if scaler is not None:
+                    scaler.unscale_(optimizer)
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=max_grad_norm)
 
-    return total_loss / len(dataloader)
+            if scaler is not None:
+                scaler.step(optimizer)
+                scaler.update()
+            else:
+                optimizer.step()
+
+            optimizer.zero_grad(set_to_none=True)
+
+            if ema is not None:
+                ema.update()
+
+        metric.add(loss.item() * accumulation_steps * data.size(0), data.size(0))
+
+    return metric[0] / metric[1]
 
 
 @torch.no_grad()
@@ -354,6 +368,164 @@ def _get_tf():
         return tf
     except ImportError:
         return None
+
+
+# ── Metric tracking ──────────────────────────────────────────────
+
+class Accumulator:
+    """Accumulate values over n variables for clean metric tracking.
+
+    Pattern from d2l — used throughout training loops to track
+    loss, accuracy, and sample counts across batches.
+
+    >>> metric = Accumulator(3)  # train_loss, train_acc, num_samples
+    >>> metric.add(loss_val, acc_val, num_samples)
+    >>> loss_avg = metric[0] / metric[2]
+    """
+    def __init__(self, n: int) -> None:
+        self.data = [0.0] * n
+
+    def add(self, *args) -> None:
+        self.data = [a + float(b) for a, b in zip(self.data, args)]
+
+    def reset(self) -> None:
+        self.data = [0.0] * len(self.data)
+
+    def __getitem__(self, idx: int) -> float:
+        return self.data[idx]
+
+
+# ── Exponential Moving Average ───────────────────────────────────
+
+class EMA:
+    """Exponential Moving Average of model parameters.
+
+    Maintains shadow copies of parameters updated with exponential decay.
+    Apply shadow weights before evaluation for better generalization
+    (common in SSL, diffusion models, and large-scale training).
+
+    >>> ema = EMA(model, decay=0.999)
+    >>> for epoch in range(epochs):
+    ...     train_one_epoch(model, loader, opt, crit, device, ema=ema)
+    ...     ema.apply_shadow()
+    ...     eval_metrics = evaluate(model, val_loader, crit, device)
+    ...     ema.restore()
+    """
+    def __init__(self, model: "nn.Module", decay: float = 0.999) -> None:
+        torch = _get_torch()
+        if torch is None:
+            raise ImportError("torch is required")
+        self.model = model
+        self.decay = decay
+        self.shadow: dict[str, "torch.Tensor"] = {}
+        self.backup: dict[str, "torch.Tensor"] = {}
+        self._register()
+
+    def _register(self) -> None:
+        for name, param in self.model.named_parameters():
+            if param.requires_grad:
+                self.shadow[name] = param.data.clone()
+
+    def update(self) -> None:
+        for name, param in self.model.named_parameters():
+            if param.requires_grad:
+                self.shadow[name].mul_(self.decay).add_(param.data, alpha=1 - self.decay)
+
+    def apply_shadow(self) -> None:
+        """Replace model parameters with EMA shadow (call before eval)."""
+        for name, param in self.model.named_parameters():
+            if param.requires_grad:
+                self.backup[name] = param.data.clone()
+                param.data.copy_(self.shadow[name])
+
+    def restore(self) -> None:
+        """Restore original parameters (call after eval)."""
+        for name, param in self.model.named_parameters():
+            if param.requires_grad:
+                param.data.copy_(self.backup[name])
+        self.backup.clear()
+
+
+# ── Optimizer & scheduler factories ──────────────────────────────
+
+def create_optimizer(
+    model: "nn.Module",
+    optimizer_name: str = "AdamW",
+    lr: float = 0.001,
+    weight_decay: float = 0.0001,
+    momentum: float = 0.9,
+    betas: tuple[float, float] = (0.9, 0.999),
+) -> "torch.optim.Optimizer":
+    """Create optimizer by name. Covers the four most common choices."""
+    torch = _get_torch()
+    if torch is None:
+        raise ImportError("torch is required")
+    name = optimizer_name.lower()
+    if name == "adamw":
+        return torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay, betas=betas)
+    elif name == "adam":
+        return torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay, betas=betas)
+    elif name == "sgd":
+        return torch.optim.SGD(model.parameters(), lr=lr, weight_decay=weight_decay, momentum=momentum)
+    elif name == "rmsprop":
+        return torch.optim.RMSprop(model.parameters(), lr=lr, weight_decay=weight_decay, momentum=momentum)
+    else:
+        raise ValueError(f"Unknown optimizer: {optimizer_name}")
+
+
+class CosineWarmupScheduler:
+    """Cosine annealing with linear warmup (d2l sec_scheduler pattern).
+
+    >>> scheduler = CosineWarmupScheduler(optimizer, warmup_steps=500, total_steps=10000)
+    >>> for batch in train_loader:
+    ...     loss.backward()
+    ...     optimizer.step()
+    ...     scheduler.step()  # call per batch after optimizer.step()
+    """
+    def __init__(
+        self,
+        optimizer: "torch.optim.Optimizer",
+        warmup_steps: int,
+        total_steps: int,
+        base_lr: float = 0.001,
+        min_lr: float = 0.0,
+    ) -> None:
+        self.optimizer = optimizer
+        self.warmup_steps = warmup_steps
+        self.total_steps = total_steps
+        self.base_lr = base_lr
+        self.min_lr = min_lr
+        self.current_step = 0
+        self._last_lr = base_lr
+
+    def get_lr(self) -> float:
+        if self.current_step < self.warmup_steps:
+            return self.min_lr + (self.base_lr - self.min_lr) * self.current_step / max(1, self.warmup_steps)
+        if self.current_step >= self.total_steps:
+            return self.min_lr
+        progress = (self.current_step - self.warmup_steps) / max(1, self.total_steps - self.warmup_steps)
+        return self.min_lr + (self.base_lr - self.min_lr) * (1 + math.cos(math.pi * progress)) / 2
+
+    def step(self) -> float:
+        self._last_lr = self.get_lr()
+        for param_group in self.optimizer.param_groups:
+            param_group['lr'] = self._last_lr
+        self.current_step += 1
+        return self._last_lr
+
+    def state_dict(self) -> dict:
+        return {'current_step': self.current_step}
+
+    def load_state_dict(self, state: dict) -> None:
+        self.current_step = state['current_step']
+
+
+def grad_clip(model: "nn.Module", max_norm: float) -> None:
+    """Clip gradient norm (essential for RNN/Transformer training stability)."""
+    torch = _get_torch()
+    if torch is None:
+        raise ImportError("torch is required")
+    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
 
 
 if __name__ == "__main__":

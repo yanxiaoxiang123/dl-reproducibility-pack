@@ -16,6 +16,11 @@ from .reproducibility import (
     log_environment_info,
     train_one_epoch,
     evaluate,
+    Accumulator,
+    EMA,
+    create_optimizer,
+    CosineWarmupScheduler,
+    grad_clip,
 )
 from .seed_worker import (
     seed_worker,
@@ -35,6 +40,11 @@ __all__ = [
     # Training patterns
     "train_one_epoch",
     "evaluate",
+    "Accumulator",
+    "EMA",
+    "create_optimizer",
+    "CosineWarmupScheduler",
+    "grad_clip",
     # Data loading
     "seed_worker",
     "get_worker_seed",

@@ -69,11 +69,11 @@ The main skill definition containing all templates and best practices for:
 
 ### scripts/
 
-Supporting Python utilities:
+Supporting Python utilities (inspired by d2l-zh patterns):
 
-- `reproducibility.py` - Core seed-setting functions
-- `seed_worker.py` - DataLoader worker seeding
-- `config.py` - Configuration management
+- `reproducibility.py` — Core seed-setting, device detection, Accumulator, EMA, CosineWarmupScheduler, enhanced training/eval loops
+- `seed_worker.py` — DataLoader worker seeding, reproducible loader factory, batch samplers
+- `config.py` — Type-safe YAML configuration with dataclass-based section management
 
 ## Features
 
@@ -88,25 +88,27 @@ Supporting Python utilities:
 - PyTorch: `set_seed(seed, framework="pytorch", deterministic=True)`
 - TensorFlow: `set_seed(seed, framework="tensorflow")`
 - DataLoader worker seeding
+- ReproducibilityContext for scoped determinism
 
-### 3. Project Structure
+### 3. Training Infrastructure (NEW — from d2l patterns)
 
-```
-research_project/
-├── configs/
-├── data/
-├── src/
-├── logs/
-├── scripts/
-├── tests/
-├── environment.yml
-├── requirements.txt
-├── Dockerfile
-├── README.md
-└── CITATION.cff
-```
+- **Accumulator** — Clean metric tracking across batches
+- **EMA** — Exponential Moving Average for better generalization
+- **CosineWarmupScheduler** — LR schedule with linear warmup + cosine decay
+- **create_optimizer()** — Factory for AdamW/Adam/SGD/RMSprop
+- **grad_clip()** — Gradient clipping for training stability
+- **Gradient accumulation** — Simulate large batches on limited GPU memory
 
-### 4. Configuration Management
+### 4. Advanced PyTorch Patterns
+
+- Weight initialization catalog (Kaiming, Xavier, Normal)
+- Multi-GPU training (DataParallel + DDP)
+- Mixed precision training (AMP)
+- Gradient checkpointing
+- Data augmentation best practices
+- Numerical stability patterns
+
+### 5. Configuration Management
 
 YAML-based hyperparameter management with type-safe Python config classes.
 
@@ -118,6 +120,15 @@ YAML-based hyperparameter management with type-safe Python config classes.
 # Tell Claude:
 "我需要你用 dl-reproducibility-pack 帮我把项目改成可复现的"
 ```
+
+The skill will analyze your codebase and inject:
+1. Deterministic seed setting
+2. Weight initialization matching your activations
+3. Gradient clipping for stability
+4. Cosine warmup LR scheduling
+5. EMA (Exponential Moving Average) for better validation
+6. Proper project structure and environment files
+7. Publication-ready README and CITATION.cff
 
 ### Use Seed Setting
 
@@ -144,6 +155,42 @@ train_loader = create_reproducible_dataloader(
 )
 ```
 
+### Use Training Infrastructure
+
+```python
+from src.reproducibility import (
+    set_seed, get_device, Accumulator,
+    EMA, CosineWarmupScheduler, create_optimizer,
+    train_one_epoch, evaluate,
+)
+
+# Setup
+device = get_device()
+set_seed(42)
+
+# Optimizer with LR schedule
+optimizer = create_optimizer(model, "AdamW", lr=0.001)
+scheduler = CosineWarmupScheduler(
+    optimizer, warmup_steps=500, total_steps=10000, base_lr=0.001, min_lr=1e-6,
+)
+
+# EMA for better validation
+ema = EMA(model, decay=0.999)
+
+# Training with gradient accumulation and mixed precision
+scaler = torch.amp.GradScaler("cuda")
+for epoch in range(num_epochs):
+    train_loss = train_one_epoch(
+        model, train_loader, optimizer, criterion, device,
+        scaler=scaler, max_grad_norm=1.0, accumulation_steps=4, ema=ema,
+    )
+    scheduler.step()
+    # Eval with EMA weights
+    ema.apply_shadow()
+    val_loss, val_acc = evaluate(model, val_loader, criterion, device)
+    ema.restore()
+```
+
 ### Use Configuration
 
 ```python
@@ -151,6 +198,7 @@ from src.config import load_config
 
 config = load_config("configs/default.yaml")
 print(config.training.batch_size)  # 128
+print(config.training.accumulation_steps)  # 1
 ```
 
 ## License
