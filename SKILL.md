@@ -1,7 +1,7 @@
 ---
 name: dl-reproducibility-pack
-description: Deep learning reproducibility toolkit with idiomatic PyTorch patterns for building robust, efficient, and reproducible training pipelines.
-origin: Custom + Everything-Claude-Code pytorch-patterns
+description: Deep learning reproducibility toolkit v2 — idiomatic PyTorch patterns from d2l-zh for robust, efficient, and reproducible training pipelines.
+origin: Custom + d2l-zh (Dive into Deep Learning) + Everything-Claude-Code pytorch-patterns
 ---
 
 # Deep Learning Reproducibility Pack
