@@ -1,5 +1,5 @@
 """
-dl-reproducibility-pack v3.3 - Deep Learning Reproducibility Toolkit
+dl-reproducibility-skills v3.3 - Deep Learning Reproducibility Toolkit
 
 A comprehensive toolkit combining reproducibility utilities with idiomatic
 PyTorch patterns for building robust, efficient, and reproducible deep
@@ -7,7 +7,7 @@ learning research projects.
 
 v3.3 incorporates navigation-first skill guidance, compatibility gates, reproducibility utilities, and 2025 best practices.
 
-Author: dl-reproducibility-pack
+Author: dl-reproducibility-skills
 """
 
 from .reproducibility import (

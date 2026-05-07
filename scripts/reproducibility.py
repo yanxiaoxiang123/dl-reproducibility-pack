@@ -11,7 +11,7 @@ Usage:
     set_seed(42, deterministic=True)
     loss = train_one_epoch(model, dataloader, optimizer, criterion, device)
 
-Author: dl-reproducibility-pack
+Author: dl-reproducibility-skills
 """
 
 from __future__ import annotations

@@ -16,7 +16,7 @@ Usage:
         num_workers=4
     )
 
-Author: dl-reproducibility-pack
+Author: dl-reproducibility-skills
 """
 
 import os

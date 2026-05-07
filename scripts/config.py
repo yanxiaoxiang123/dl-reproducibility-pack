@@ -10,7 +10,7 @@ Usage:
     config = load_config("configs/default.yaml")
     print(config.training.batch_size)
 
-Author: dl-reproducibility-pack
+Author: dl-reproducibility-skills
 """
 
 import os

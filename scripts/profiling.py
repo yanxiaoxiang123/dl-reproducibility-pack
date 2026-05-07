@@ -6,7 +6,7 @@ profiling.py - Training Performance Profiling Utilities
 Provides PyTorch Profiler wrappers for benchmarking and diagnosing
 training bottlenecks. Based on PyTorch 2.6+ best practices.
 
-Author: dl-reproducibility-pack v3.3
+Author: dl-reproducibility-skills v3.3
 """
 
 import os
@@ -232,7 +232,7 @@ def throughput_report(model: "nn.Module", device: "torch.device", **kwargs) -> N
 
 
 if __name__ == "__main__":
-    print("Profiling utilities for dl-reproducibility-pack v3.3")
+    print("Profiling utilities for dl-reproducibility-skills v3.3")
     print("  ProfileContext  - PyTorch Profiler with warmup/active/wait scheduling")
     print("  BenchmarkTimer  - CUDA-synchronized micro-benchmark timer")
     print("  benchmark_model - Throughput & memory benchmark")

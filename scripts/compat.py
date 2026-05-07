@@ -6,7 +6,7 @@ compat.py - Version Compatibility Detection & Graceful Degradation
 Auto-detects Python/PyTorch/OS versions and returns a feature availability
 report. All skill components use this to provide graceful fallbacks.
 
-Author: dl-reproducibility-pack v3.3
+Author: dl-reproducibility-skills v3.3
 """
 
 import sys
@@ -163,7 +163,7 @@ def print_compat_report(
 ) -> None:
     """Print a formatted compatibility report."""
     print("=" * 60)
-    print("dl-reproducibility-pack - Compatibility Report")
+    print("dl-reproducibility-skills - Compatibility Report")
     print("=" * 60)
 
     # Environment table

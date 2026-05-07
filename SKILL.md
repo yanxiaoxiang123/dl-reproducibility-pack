@@ -1,5 +1,5 @@
 ---
-name: dl-reproducibility-pack
+name: dl-reproducibility-skills
 description: Deep learning reproducibility workflow and utility pack for PyTorch or TensorFlow research projects. Use when the user wants to make training code reproducible, audit determinism, scaffold a research project, lock an environment, create reproducible dataset splits, improve checkpoints, set seeds, diagnose DataLoader randomness, add experiment tracking, benchmark/profile training, prepare publication reproducibility materials, or modernize DL training loops for CPU/CUDA/MPS, AMP, DDP/FSDP-style distributed training, torch.compile, or full RNG checkpoint resume.
 ---
 

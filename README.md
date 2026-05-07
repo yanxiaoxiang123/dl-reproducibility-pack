@@ -1,6 +1,6 @@
-# dl-reproducibility-pack v3.3
+# dl-reproducibility-skills v3.3
 
-[![version](https://img.shields.io/badge/version-v3.3.0-blue)](https://github.com/yanxiaoxiang123/dl-reproducibility-pack/releases/tag/v3.3.0)
+[![version](https://img.shields.io/badge/version-v3.3.0-blue)](https://github.com/yanxiaoxiang123/dl-reproducibility-skills/releases/tag/v3.3.0)
 [![license](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![tested](https://img.shields.io/badge/tested-RTX%203090%20%C3%972%20%7C%20PyTorch%202.9.1%20%7C%20CUDA%2012.8-brightgreen)]()
 [![python](https://img.shields.io/badge/python-3.8%2B-blue)]()
@@ -51,7 +51,7 @@ python scripts/compat.py
 输出：
 ```
 ============================================================
-dl-reproducibility-pack - Compatibility Report
+dl-reproducibility-skills - Compatibility Report
 ============================================================
 Component            Detected                       Status
 ------------------------------------------------------------
@@ -225,10 +225,10 @@ This skill helps researchers make their deep learning projects fully reproducibl
 
 ```bash
 # Global installation
-~/.claude/skills/dl-reproducibility-pack/
+~/.claude/skills/dl-reproducibility-skills/
 
 # Or project-local
-your-project/.claude/skills/dl-reproducibility-pack/
+your-project/.claude/skills/dl-reproducibility-skills/
 ```
 
 ---
