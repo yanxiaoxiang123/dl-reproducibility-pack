@@ -1,53 +1,85 @@
-# dl-reproducibility-pack v3.1.2
+# dl-reproducibility-pack v3.2
 
-[![version](https://img.shields.io/badge/version-v3.1.2-blue)](https://github.com/yanxiaoxiang123/dl-reproducibility-pack/releases/tag/v3.1.2)
+[![version](https://img.shields.io/badge/version-v3.2.0-blue)](https://github.com/yanxiaoxiang123/dl-reproducibility-pack/releases/tag/v3.2.0)
 [![license](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![tested](https://img.shields.io/badge/tested-RTX%203090%20%C3%972%20%7C%20PyTorch%202.9.1%20%7C%20CUDA%2012.8-brightgreen)]()
 [![python](https://img.shields.io/badge/python-3.8%2B-blue)]()
 [![pytorch](https://img.shields.io/badge/pytorch-1.10%2B-orange)]()
 
 Deep learning reproducibility toolkit for PyTorch and TensorFlow researchers.  
-**v3.2** — 自动检测环境版本，优雅降级。核心功能 PyTorch 1.10+，高级功能 2.0−2.7。
+**v3.2** — 自动检测环境版本，所有功能优雅降级。核心 PyTorch 1.10+，高级 2.0−2.7。
 
 ---
 
-## 版本兼容性
+## v3.2 新增：版本兼容性 & 优雅降级 (2026-05-07)
 
-运行 `python scripts/compat.py` 查看完整报告。所有功能自动检测环境并优雅降级：
+用户 Python/PyTorch 版本千差万别，v3.2 解决"换个环境就崩溃"的问题。
 
+**`compat.py` — 一键环境诊断：**
+
+```bash
+python scripts/compat.py
 ```
-PyTorch 1.10  →  核心功能 (seeds, EMA, CosineWarmup, 检查点)
-PyTorch 2.0   →  + torch.compile
-PyTorch 2.4   →  + FSDP2 (fully_shard)，否则自动降级为 DDP
-PyTorch 2.7   →  + Mega Cache (跨机器编译缓存)
+输出：
+```
+============================================================
+dl-reproducibility-pack — Compatibility Report
+============================================================
+Component            Detected                       Status
+------------------------------------------------------------
+Python               Python 3.10                    OK
+PyTorch              PyTorch 2.9.1+cu128            OK
+GPU                  2 GPU(s) (NVIDIA GeForce RTX 3090) OK
+...
+Feature Availability:
+  torch_compile                  ✓ OK         PyTorch 2.0
+  fsdp2                          ✓ OK         PyTorch 2.4
+  mega_cache                     ✓ OK         PyTorch 2.7
+  mps_support                    ✗ —          PyTorch 1.12 (not on Linux)
+============================================================
+VERDICT: All core features available.
 ```
 
-| 你的环境 → | PyTorch 1.10−1.13 | PyTorch 2.0−2.3 | PyTorch 2.4+ |
-|-----------|-------------------|-----------------|--------------|
-| set_seed | ✓ | ✓ | ✓ |
-| EMA / CosineWarmup | ✓ | ✓ | ✓ |
-| save_full_checkpoint | ✓ | ✓ | ✓ |
-| train_one_epoch (AMP) | ✓ | ✓ | ✓ |
-| torch.compile | 跳过 (返回原模型) | ✓ | ✓ |
+**所有版本敏感函数添加防护门，不会因版本不匹配崩溃：**
+
+| 函数 | 最低 PT 版本 | 不满足时的行为 |
+|------|-------------|---------------|
+| `compile_model()` | 2.0 | 返回未编译模型 + `[SKIP] torch.compile requires PyTorch >= 2.0` |
+| `compile_model(use_mega_cache=True)` | 2.7 | 跳过 Mega Cache + `[SKIP]` 提示 |
+| `create_distributed_model("fsdp2")` | 2.4 | 自动回退到 DDP + `[FALLBACK]` 提示 |
+| `create_distributed_model("fsdp2")` | 分布式环境未初始化 | 自动回退到 DDP + 提示 `torchrun train.py` |
+| `get_device(allow_mps=True)` | 1.12 | MPS 跳过，回退到 CPU |
+| `get_metrics()` | torchmetrics 未安装 | `ImportError: pip install torchmetrics` |
+| `stratified_split()` | sklearn 未安装 | `ImportError: pip install scikit-learn` |
+
+**核心原则**：能跑的功能全跑，不能跑的跳过并告知用户，绝不崩溃。
+
+---
+
+## 版本兼容性矩阵
+
+| 你的 PyTorch → | 1.10−1.13 | 2.0−2.3 | 2.4+ |
+|---------------|-----------|---------|------|
+| 核心功能 (seeds, EMA, scheduler, 检查点) | ✓ | ✓ | ✓ |
+| AMP 混合精度 | ✓ | ✓ | ✓ |
+| `torch.compile` | 跳过 | ✓ | ✓ |
 | FSDP2 | 回退到 DDP | 回退到 DDP | ✓ |
 | Mega Cache | 跳过 | 跳过 | ✓ (2.7+) |
 | MPS (Apple Silicon) | ✓ (1.12+) | ✓ | ✓ |
-| weights_only 默认 | — | — | ✓ (2.6+) |
 
 ---
 
-## v3.1.2 Bug 修复 (2026-05-07)
+<details>
+<summary>📋 v3.1.2 Bug 修复 (2026-05-07)</summary>
 
-在 `newsstock` conda 环境中实地测试发现的 4 个运行时问题已修复：
+| Bug | 现象 | 修复 |
+|-----|------|------|
+| `EMA` forward reference | `NameError` | 添加 `from __future__ import annotations` |
+| `@torch.no_grad()` 装饰器 | `NameError` | 改为 `with torch.no_grad():` |
+| `seed_worker.py` 缺少 `import os` | `NameError` | 添加导入 |
+| TorchMetrics 设备不匹配 | `RuntimeError` | `get_metrics()` 加 `device` 参数 |
 
-| Bug | 现象 | 根因 | 修复 |
-|-----|------|------|------|
-| **#1** `EMA` forward reference | `NameError: name 'EMA' is not defined` | `train_one_epoch()` 的 `ema: Optional[EMA]` 类型注解在 `EMA` 类定义之前被求值 | 添加 `from __future__ import annotations` |
-| **#2** `torch` 模块级装饰器 | `NameError: name 'torch' is not defined` | `@torch.no_grad()` 装饰器在 lazy import (`_get_torch()`) 可用前被执行 | 改为函数内部 `with torch.no_grad():` 上下文管理器 |
-| **#3** `seed_worker.py` 缺少导入 | `NameError: name 'os' is not defined` | v3 新增的 `save_dataset_split()` / `DatasetVersioning` 使用了 `os` 但未导入 | 添加 `import os` |
-| **#4** TorchMetrics 设备不匹配 | `RuntimeError: Expected all tensors to be on the same device` | `get_metrics()` 创建的 metric 对象默认在 CPU，输入在 GPU | 添加 `device` 参数并调 `.to(device)` |
-
-修复后 20/20 测试全部通过，包括 `verify_reproducibility()` 确认两次运行的 loss 曲线逐位一致（max diff = 0.00e+00）。
+</details>
 
 ---
 
@@ -182,14 +214,15 @@ training & evaluation, metric tracking, gradient management, LR scheduling,
 EMA, multi-GPU & FSDP2, debugging & diagnostics, data pipelines, augmentation,
 checkpointing, environment locking, profiling, tracking, and documentation templates.
 
-### scripts/ (8 files)
+### scripts/ (6 files)
 
 | 文件 | 职责 |
 |------|------|
-| `reproducibility.py` | Seeds, device, Accumulator, EMA, CosineWarmup, full RNG checkpoint, FSDP2, torch.compile, TorchMetrics, TorchElastic, safe loading |
+| `compat.py` | **NEW v3.2** — 版本检测：`check_compatibility()` 一键诊断环境 |
+| `reproducibility.py` | Seeds, device, EMA, CosineWarmup, full RNG checkpoint, FSDP2, torch.compile, TorchMetrics, TorchElastic, safe loading |
 | `seed_worker.py` | DataLoader seeding, reproducible loader factory, dataset split management, versioning |
-| `profiling.py` | **NEW v3** — ProfileContext, BenchmarkTimer, benchmark_model, throughput_report |
-| `tracking.py` | **NEW v3** — ExperimentTracker (Trackio/MLflow/W&B) |
+| `profiling.py` | ProfileContext, BenchmarkTimer, benchmark_model, throughput_report |
+| `tracking.py` | ExperimentTracker (Trackio/MLflow/W&B) |
 | `config.py` | 6 dataclass sections, 30+ fields, YAML I/O, dot-path access |
 
 ---
@@ -297,6 +330,7 @@ from src.seed_worker import (
 )
 from src.profiling import ProfileContext, BenchmarkTimer, benchmark_model   # v3 新增 (#7)
 from src.tracking import ExperimentTracker                                   # v3 新增 (#9)
+from src.compat import check_compatibility                                   # v3.2 新增 (版本诊断)
 ```
 
 ---
