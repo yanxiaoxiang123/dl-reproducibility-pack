@@ -64,10 +64,37 @@ v1 (基础)          v2 (d2l-zh 训练设施)        v3 (2025 可复现性标准
 
 ---
 
+## Interactive Diagnostic Workflow (Plan-First)
+
+When you say "帮我把项目改成可复现的", the skill does NOT immediately generate code.
+Instead, it follows a **诊断→计划→实施** (Diagnose→Plan→Implement) workflow:
+
+### Phase 1 — Diagnostic Questionnaire
+Claude asks 12 targeted questions across 4 categories:
+- **A. 项目基础**: Framework, domain, hardware, code maturity
+- **B. 可复现性需求**: Publication target, bit-exact vs tolerance, resume needs, seed count
+- **C. 数据与基础设施**: Dataset situation, experiment tracking, Docker, Python env
+- **D. 代码检查**: Auto-scans for existing seeds, train/eval patterns, checkpoint code
+
+### Phase 2 — Diagnosis & Tailored Plan
+Presents a diagnosis table + prioritized implementation plan:
+- **P0 (Must):** Seeds, environment lock, data splits
+- **P1 (Strongly Recommended):** Gradient mgmt, LR schedule, checkpoint, Docker
+- **P2 (Nice to Have):** Tracking, profiling, verification CI
+- **P3 (Optional):** AMP, FSDP2, torch.compile, TorchElastic
+
+Priority adjusts based on publication target, hardware, domain, and framework.
+
+### Phase 3 — Implementation
+After user approves the plan, implements each step with diff previews.
+
+---
+
 ## Overview
 
-This skill helps researchers make their deep learning projects fully reproducible for paper publication:
+This skill helps researchers make their deep learning projects fully reproducible:
 
+- **Interactive diagnostic** — asks the right questions before recommending solutions
 - **AAAI 2025 Reproducibility Checklist** compliance
 - **Full RNG checkpointing** — save ALL random states (Python/NumPy/PyTorch/CUDA)
 - **Two-run verification** — CI/CD guard for bit-exact reproducibility

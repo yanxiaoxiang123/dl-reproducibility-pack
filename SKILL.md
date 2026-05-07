@@ -1162,25 +1162,174 @@ license: MIT
 
 ---
 
-### 11. Full-Generation Workflow
+### 11. Interactive Diagnostic Workflow (Plan-First)
 
-When user asks to make their project reproducible:
+**CRITICAL: When a user asks to make their project reproducible, you MUST follow this
+diagnostic-first approach. Do NOT immediately generate code or templates.**
+First understand the project, then propose a tailored plan, then implement.
 
-1. **Detect Framework** - Check for `import torch` or `import tensorflow`
-2. **Analyze Structure** - Map existing files to project structure
-3. **Generate Environment Files** - requirements.txt, environment.yml, Dockerfile
-4. **Inject Determinism** - Add `set_seed()` to training scripts, `seed_worker()` for DataLoader
-5. **Add Weight Initialization** - Match init strategy to activation functions (Kaiming→ReLU, Xavier→Tanh)
-6. **Add Metric Tracking** - Replace raw float accumulators with `Accumulator` class
-7. **Add Gradient Management** - Gradient clipping for RNN/Transformer, gradient accumulation for large models
-8. **Add LR Scheduling** - CosineAnnealing with linear warmup as the default schedule
-9. **Create Project Structure** - Scaffold missing directories
-10. **Generate Configuration** - Create `configs/default.yaml` with all training options
-11. **Generate Documentation** - Create publication-ready README and CITATION.cff
+#### Phase 1 — Diagnostic Questionnaire
+
+Ask the following questions (adapt order based on conversation context).
+**Stop after Phase 1 and present the diagnosis summary before proceeding.**
+
+**A. Project Basics** (ask all that are unknown)
+
+1. What deep learning framework? PyTorch / TensorFlow / JAX / other?
+2. What domain? CV / NLP / tabular / RL / audio / multimodal / other?
+3. What's the current state?
+   - A) Just starting, no code yet
+   - B) Have working code but no reproducibility measures
+   - C) Partially reproducible, want to level up
+   - D) Almost ready for paper submission
+4. What hardware do you use?
+   - A) Single NVIDIA GPU
+   - B) Multi-GPU (same machine)
+   - C) Multi-node cluster
+   - D) Apple Silicon (MPS)
+   - E) CPU only
+   - F) Cloud (specify: AWS/GCP/Azure/etc.)
+
+**B. Reproducibility Requirements** (ask all that are unknown)
+
+5. What's the publication target?
+   - A) Top conference (NeurIPS/ICML/CVPR/ACL etc.) — strictest requirements
+   - B) Journal — standard requirements
+   - C) Workshop / arXiv — moderate requirements
+   - D) Internal / not publishing — minimal requirements
+6. Do you need bit-for-bit exact reproducibility?
+   - A) Yes — every run must produce identical weights
+   - B) Within statistical tolerance — mean±std across seeds is sufficient
+7. Do you need to resume training from checkpoints?
+   - A) Yes, long training that may be interrupted
+   - B) No, training is short enough to restart
+8. How many random seeds for reporting?
+   - A) 1 seed (exploratory)
+   - B) 3 seeds (standard)
+   - C) 5+ seeds (rigorous)
+   - D) Not sure yet
+
+**C. Data & Infrastructure** (ask all that are unknown)
+
+9. What's the dataset situation?
+   - A) Public benchmark dataset (CIFAR, ImageNet, etc.)
+   - B) Private dataset (need to document preprocessing)
+   - C) Both train/val/test split already defined
+   - D) Need to create splits
+10. Are you using experiment tracking?
+    - A) No tracking yet
+    - B) TensorBoard only
+    - C) W&B / MLflow / Trackio
+    - D) Want a recommendation
+11. Do you have Docker available?
+    - A) Yes, already using it
+    - B) Docker installed but not using
+    - C) No Docker — want help setting up
+    - D) Can't use Docker (HPC restrictions, etc.)
+12. What's your Python environment?
+    - A) pip + virtualenv/venv
+    - B) conda/mamba
+    - C) pip only (global)
+    - D) Poetry / uv / other
+
+**D. Existing Code Check** (scan the project, then ask only if unclear)
+
+13. Check for existing: `set_seed()`, `torch.manual_seed()`, `cudnn.deterministic` calls
+14. Check for existing: `model.train()` / `model.eval()` patterns
+15. Check for existing: checkpoint save/load code
+16. Check for existing: DataLoader `worker_init_fn` or `generator`
 
 ---
 
-## 12. v2 Advanced Features (2025 PyTorch Best Practices)
+#### Phase 2 — Diagnosis & Tailored Plan
+
+After Phase 1, present a **diagnosis summary** in this format:
+
+```markdown
+## 项目诊断
+
+| 维度 | 当前状态 | 建议 |
+|------|----------|------|
+| 框架 | PyTorch | — |
+| 领域 | CV (图像分类) | — |
+| 代码状态 | 有代码，无可复现性 | 需要注入种子设定 + 数据分割 |
+| 硬件 | 单 GPU | DDP 不需要，AMP 建议开启 |
+| 发表目标 | 顶会 (CVPR) | 需要最高级别可复现性 |
+| 精确度要求 | 统计容忍度内 | 3 种子，mean±std 报告 |
+| 续训 | 不需要 | 基础检查点即可 |
+| 数据集 | 公开 (CIFAR100) | 保存预处理流程 |
+| 实验追踪 | 无 | 推荐 Trackio (轻量) |
+| Docker | 无 | 生成 Dockerfile 模板 |
+| 环境 | pip + venv | pip freeze 完整锁定 |
+
+**建议实施计划 (按优先级排序):**
+1. [P0] 注入确定性种子 + DataLoader worker seeding
+2. [P0] 锁定环境 (pip freeze + 环境信息)
+3. [P0] 创建 train/val 分割并保存
+4. [P1] 添加梯度裁剪 + CosineWarmup 调度器
+5. [P1] 生成 requirements_frozen.txt + Dockerfile
+6. [P2] 集成 ExperimentTracker (Trackio)
+7. [P2] 二跑验证 CI 检查
+8. [P3] AMP 混合精度 (可选，单 GPU 收益小)
+
+回复 "执行" 开始实施以上计划，或告诉我需要调整的部分。
+```
+
+**Priority assignment rules:**
+- **P0 (Must Have):** Seeds, environment lock, data splits — required by all checklists
+- **P1 (Strongly Recommended):** Gradient mgmt, LR schedule, checkpoint, Docker — significant value
+- **P2 (Nice to Have):** Tracking, profiling, verification CI — quality-of-life improvements
+- **P3 (Optional):** AMP, FSDP2, torch.compile, TorchElastic — only if hardware/need justifies
+
+**Customization rules based on answers:**
+- `publication=top_conf` → Require P0+P1+P2, suggest P3
+- `publication=internal` → Only P0 is mandatory
+- `hardware=cpu_only` → Skip AMP, FSDP2, CUDA-specific settings
+- `hardware=apple_silicon` → Use MPS device, skip CUDA settings
+- `domain=nlp` → Add gradient clipping (critical for RNN/Transformer)
+- `domain=cv` → Add data augmentation patterns
+- `resume_training=yes` → Require full RNG checkpoint (save_full_checkpoint)
+- `bit_exact=yes` → Set `torch.use_deterministic_algorithms(True)`, warn about 10-30% slowdown
+- `framework=tensorflow` → Use TF-specific `set_seed_tf()`, skip torch.compile
+- `dataset=private` → Add DatasetVersioning + preprocessing documentation
+- `docker=no_cant` → Generate conda environment.yml as alternative
+
+---
+
+#### Phase 3 — Implementation
+
+Once user approves the plan, implement in this order:
+
+1. **Environment**: `lock_environment()` → `requirements_frozen.txt` → Dockerfile/conda env
+2. **Determinism**: Inject `set_seed()` at top of training script, add `seed_worker()` to DataLoader
+3. **Data**: Create/save dataset splits, add `DatasetVersioning` if private data
+4. **Training loop**: Add gradient clipping, CosineWarmupScheduler, Accumulator
+5. **Checkpointing**: Replace `torch.save(model.state_dict())` with `save_full_checkpoint()`
+6. **Evaluation**: Replace hand-rolled metrics with TorchMetrics via `get_metrics()`
+7. **Tracking**: Add `ExperimentTracker` with appropriate backend
+8. **Verification**: Add `verify_reproducibility()` to test suite
+9. **Documentation**: Generate README + CITATION.cff + environment report
+
+**For each step, show a diff preview** before applying changes (respecting user preference for confirmation).
+
+---
+
+#### Quick-Activation Shortcuts
+
+If user explicitly asks for a specific feature without the full diagnostic:
+
+```
+"帮我锁定环境"        → lock_environment("env_lock")
+"帮我加二跑验证"      → inject verify_reproducibility() into test suite
+"帮我做数据集版本控制" → inject save_dataset_split() + DatasetVersioning
+"帮我加实验追踪"      → inject ExperimentTracker with recommended backend
+```
+
+But if the request is broad ("make my project reproducible"), **always go through Phase 1→2→3**.
+
+---
+
+### 12. v3 Advanced Features (2025 PyTorch Best Practices)
 
 ### 12a. Full RNG State Checkpointing
 
