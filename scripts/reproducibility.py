@@ -14,6 +14,8 @@ Usage:
 Author: dl-reproducibility-pack
 """
 
+from __future__ import annotations
+
 import json
 import math
 import random
@@ -354,7 +356,6 @@ def train_one_epoch(
     return metric[0] / metric[1]
 
 
-@torch.no_grad()
 def evaluate(
     model: "nn.Module",
     dataloader: "DataLoader",
@@ -382,12 +383,13 @@ def evaluate(
     correct = 0
     total = 0
 
-    for data, target in dataloader:
-        data, target = data.to(device), target.to(device)
-        output = model(data)
-        total_loss += criterion(output, target).item()
-        correct += (output.argmax(1) == target).sum().item()
-        total += target.size(0)
+    with torch.no_grad():
+        for data, target in dataloader:
+            data, target = data.to(device), target.to(device)
+            output = model(data)
+            total_loss += criterion(output, target).item()
+            correct += (output.argmax(1) == target).sum().item()
+            total += target.size(0)
 
     return total_loss / len(dataloader), correct / total
 
@@ -864,7 +866,8 @@ def compile_model(
 
 # ── Improvement #8: TorchMetrics Integration ───────────────────
 
-def get_metrics(metric_names: list[str], num_classes: int = 0) -> dict:
+def get_metrics(metric_names: list[str], num_classes: int = 0,
+                 device: Optional["torch.device"] = None) -> dict:
     """Create standardized TorchMetrics for reproducible evaluation.
 
     TorchMetrics (2025 standard) ensures metric implementations are consistent
@@ -873,6 +876,7 @@ def get_metrics(metric_names: list[str], num_classes: int = 0) -> dict:
     Args:
         metric_names: List of metric names, e.g. ['Accuracy', 'F1Score', 'AUROC']
         num_classes: Number of classes for classification metrics
+        device: Device to place metrics on (must match input device)
 
     Returns:
         Dict mapping name -> Metric instance (call .update(preds, target), .compute())
@@ -886,33 +890,37 @@ def get_metrics(metric_names: list[str], num_classes: int = 0) -> dict:
     except ImportError:
         raise ImportError("torchmetrics is required: pip install torchmetrics")
 
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     metrics: dict[str, object] = {}
     for name in metric_names:
         name_lower = name.lower()
         if name_lower == "accuracy":
-            metrics[name] = torchmetrics.Accuracy(
+            m = torchmetrics.Accuracy(
                 task="multiclass", num_classes=num_classes,
             ) if num_classes else torchmetrics.Accuracy(task="binary")
         elif name_lower == "f1score":
-            metrics[name] = torchmetrics.F1Score(
+            m = torchmetrics.F1Score(
                 task="multiclass", num_classes=num_classes,
             ) if num_classes else torchmetrics.F1Score(task="binary")
         elif name_lower == "auroc":
-            metrics[name] = torchmetrics.AUROC(
+            m = torchmetrics.AUROC(
                 task="multiclass", num_classes=num_classes,
             ) if num_classes else torchmetrics.AUROC(task="binary")
         elif name_lower == "precision":
-            metrics[name] = torchmetrics.Precision(
+            m = torchmetrics.Precision(
                 task="multiclass", num_classes=num_classes,
             ) if num_classes else torchmetrics.Precision(task="binary")
         elif name_lower == "recall":
-            metrics[name] = torchmetrics.Recall(
+            m = torchmetrics.Recall(
                 task="multiclass", num_classes=num_classes,
             ) if num_classes else torchmetrics.Recall(task="binary")
         elif name_lower == "meaniou":
-            metrics[name] = torchmetrics.JaccardIndex(task="multiclass", num_classes=num_classes)
+            m = torchmetrics.JaccardIndex(task="multiclass", num_classes=num_classes)
         else:
             raise ValueError(f"Unknown metric: {name}")
+        metrics[name] = m.to(device)
     return metrics
 
 
