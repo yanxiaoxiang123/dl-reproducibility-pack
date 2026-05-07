@@ -1,10 +1,12 @@
+from __future__ import annotations
+
 """
 profiling.py - Training Performance Profiling Utilities
 
 Provides PyTorch Profiler wrappers for benchmarking and diagnosing
 training bottlenecks. Based on PyTorch 2.6+ best practices.
 
-Author: dl-reproducibility-pack v2
+Author: dl-reproducibility-pack v3.3
 """
 
 import os
@@ -189,7 +191,7 @@ def benchmark_model(
                     model(input_tensor)
 
     batch_size = input_shape[0]
-    throughput = (batch_size * num_runs) / (timer.avg_ms / 1000) if timer.history else 0.0
+    throughput = batch_size / (timer.avg_ms / 1000) if timer.history else 0.0
 
     result = {
         "batch_size": batch_size,
@@ -204,7 +206,8 @@ def benchmark_model(
     # P95 latency
     if len(timer.history) >= 20:
         sorted_times = sorted(timer.history)
-        result["latency_ms_p95"] = sorted_times[int(len(sorted_times) * 0.95)]
+        p95_index = min(len(sorted_times) - 1, int((len(sorted_times) - 1) * 0.95))
+        result["latency_ms_p95"] = sorted_times[p95_index]
 
     # GPU memory
     if torch.cuda.is_available():
@@ -229,7 +232,7 @@ def throughput_report(model: "nn.Module", device: "torch.device", **kwargs) -> N
 
 
 if __name__ == "__main__":
-    print("Profiling utilities for dl-reproducibility-pack v2")
-    print("  ProfileContext  — PyTorch Profiler with warmup/active/wait scheduling")
-    print("  BenchmarkTimer  — CUDA-synchronized micro-benchmark timer")
-    print("  benchmark_model — Throughput & memory benchmark")
+    print("Profiling utilities for dl-reproducibility-pack v3.3")
+    print("  ProfileContext  - PyTorch Profiler with warmup/active/wait scheduling")
+    print("  BenchmarkTimer  - CUDA-synchronized micro-benchmark timer")
+    print("  benchmark_model - Throughput & memory benchmark")

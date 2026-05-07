@@ -15,7 +15,7 @@ Usage:
         tracker.log_metrics({"loss": train_loss, "acc": val_acc}, step=epoch)
     tracker.finish()
 
-Author: dl-reproducibility-pack v2
+Author: dl-reproducibility-pack v3.3
 """
 
 import os
@@ -177,8 +177,8 @@ class ExperimentTracker:
 
 
 if __name__ == "__main__":
-    print("Experiment Tracking for dl-reproducibility-pack v2")
-    print("  ExperimentTracker — Unified interface for Trackio / MLflow / W&B")
+    print("Experiment Tracking for dl-reproducibility-pack v3.3")
+    print("  ExperimentTracker - Unified interface for Trackio / MLflow / W&B")
     print()
     print("  Usage:")
     print("    tracker = ExperimentTracker('trackio', 'my_exp')")

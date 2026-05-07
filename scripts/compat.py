@@ -1,10 +1,12 @@
+from __future__ import annotations
+
 """
-compat.py — Version Compatibility Detection & Graceful Degradation
+compat.py - Version Compatibility Detection & Graceful Degradation
 
 Auto-detects Python/PyTorch/OS versions and returns a feature availability
 report. All skill components use this to provide graceful fallbacks.
 
-Author: dl-reproducibility-pack v3.1
+Author: dl-reproducibility-pack v3.3
 """
 
 import sys
@@ -95,7 +97,7 @@ def check_compatibility(verbose: bool = True) -> dict:
 
     # ── PyTorch checks ──
     if pytorch_info is None:
-        warnings.append("PyTorch not installed — install: pip install torch")
+        warnings.append("PyTorch not installed - install: pip install torch")
         recommendations.append("Install PyTorch >= 1.10 for core reproducibility features")
     else:
         ver = (pytorch_info["major"], pytorch_info["minor"])
@@ -122,7 +124,7 @@ def check_compatibility(verbose: bool = True) -> dict:
             warnings.append(f"PyTorch {pytorch_info['version']} < 2.7: Mega Cache unavailable")
 
         if not pytorch_info["has_cuda"] and not pytorch_info["has_mps"]:
-            warnings.append("No GPU detected — training will be CPU-only (slow)")
+            warnings.append("No GPU detected - training will be CPU-only (slow)")
 
     # ── Dependency checks ──
     features["torchmetrics_available"] = deps.get("torchmetrics", False)
@@ -161,7 +163,7 @@ def print_compat_report(
 ) -> None:
     """Print a formatted compatibility report."""
     print("=" * 60)
-    print("dl-reproducibility-pack — Compatibility Report")
+    print("dl-reproducibility-pack - Compatibility Report")
     print("=" * 60)
 
     # Environment table
@@ -184,7 +186,7 @@ def print_compat_report(
     else:
         print(f"{'PyTorch':<20} {'NOT INSTALLED':<30} MISSING")
 
-    print(f"{'OS':<20} {os_info['system']} {os_info['machine']:<30} —")
+    print(f"{'OS':<20} {os_info['system']} {os_info['machine']:<30} -")
     print()
 
     # Features table
@@ -209,7 +211,7 @@ def print_compat_report(
 
         for name, available in sorted(features.items()):
             min_ver = feature_min_ver.get(name, "")
-            status = "✓ OK" if available else "✗ —"
+            status = "OK" if available else "NO"
             print(f"  {name:<30} {status:<12} {min_ver}")
         print()
 
@@ -258,7 +260,7 @@ def feature_guard(feature_name: str, fallback_message: str = ""):
                 return func(*args, **kwargs)
             else:
                 msg = fallback_message or f"Feature '{feature_name}' unavailable in this environment"
-                print(f"[SKIP] {msg} — {func.__name__}() not executed")
+                print(f"[SKIP] {msg} - {func.__name__}() not executed")
                 return None
         return wrapper
     return decorator

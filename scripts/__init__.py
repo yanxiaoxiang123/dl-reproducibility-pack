@@ -1,11 +1,11 @@
 """
-dl-reproducibility-pack v2 — Deep Learning Reproducibility Toolkit
+dl-reproducibility-pack v3.3 - Deep Learning Reproducibility Toolkit
 
 A comprehensive toolkit combining reproducibility utilities with idiomatic
 PyTorch patterns for building robust, efficient, and reproducible deep
 learning research projects.
 
-v2 incorporates patterns from d2l-zh and 2025 best practices.
+v3.3 incorporates navigation-first skill guidance, compatibility gates, reproducibility utilities, and 2025 best practices.
 
 Author: dl-reproducibility-pack
 """
@@ -58,7 +58,7 @@ from .compat import check_compatibility, get_pytorch_info, get_python_info
 from .config import Config, load_config, create_default_config
 
 __all__ = [
-    # Compatibility (v3.1)
+    # Compatibility
     "check_compatibility",
     "get_pytorch_info",
     "get_python_info",
@@ -79,14 +79,14 @@ __all__ = [
     "create_optimizer",
     "CosineWarmupScheduler",
     "grad_clip",
-    # Full checkpointing (v2)
+    # Full checkpointing
     "save_full_checkpoint",
     "load_full_checkpoint",
     "verify_reproducibility",
-    # Distributed (v2)
+    # Distributed
     "create_distributed_model",
     "compile_model",
-    # Metrics & hardware (v2)
+    # Metrics & hardware
     "get_metrics",
     "get_elastic_environment",
     "safe_load_checkpoint",
@@ -99,12 +99,12 @@ __all__ = [
     "load_dataset_split",
     "stratified_split",
     "DatasetVersioning",
-    # Profiling (v2)
+    # Profiling
     "ProfileContext",
     "BenchmarkTimer",
     "benchmark_model",
     "throughput_report",
-    # Tracking (v2)
+    # Tracking
     "ExperimentTracker",
     # Configuration
     "Config",

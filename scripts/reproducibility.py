@@ -321,20 +321,26 @@ def train_one_epoch(
     model.train()
     metric = Accumulator(2)  # loss_sum, sample_count
     optimizer.zero_grad(set_to_none=True)
+    total_batches = len(dataloader)
 
     for batch_idx, (data, target) in enumerate(dataloader):
         data, target = data.to(device), target.to(device)
+        window_start = (batch_idx // accumulation_steps) * accumulation_steps
+        window_end = min(window_start + accumulation_steps, total_batches)
+        accumulation_divisor = window_end - window_start
 
         with torch.amp.autocast("cuda", enabled=scaler is not None):
             output = model(data)
-            loss = criterion(output, target) / accumulation_steps
+            loss = criterion(output, target) / accumulation_divisor
 
         if scaler is not None:
             scaler.scale(loss).backward()
         else:
             loss.backward()
 
-        if (batch_idx + 1) % accumulation_steps == 0:
+        is_accumulation_boundary = (batch_idx + 1) % accumulation_steps == 0
+        is_last_batch = (batch_idx + 1) == len(dataloader)
+        if is_accumulation_boundary or is_last_batch:
             if max_grad_norm is not None:
                 if scaler is not None:
                     scaler.unscale_(optimizer)
@@ -351,7 +357,7 @@ def train_one_epoch(
             if ema is not None:
                 ema.update()
 
-        metric.add(loss.item() * accumulation_steps * data.size(0), data.size(0))
+        metric.add(loss.item() * accumulation_divisor * data.size(0), data.size(0))
 
     return metric[0] / metric[1]
 
@@ -387,11 +393,12 @@ def evaluate(
         for data, target in dataloader:
             data, target = data.to(device), target.to(device)
             output = model(data)
-            total_loss += criterion(output, target).item()
+            batch_size = target.size(0)
+            total_loss += criterion(output, target).item() * batch_size
             correct += (output.argmax(1) == target).sum().item()
-            total += target.size(0)
+            total += batch_size
 
-    return total_loss / len(dataloader), correct / total
+    return total_loss / total, correct / total
 
 
 # For internal use when torch is available

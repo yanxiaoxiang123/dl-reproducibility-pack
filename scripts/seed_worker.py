@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 seed_worker.py - DataLoader Worker Seeding Utilities
 

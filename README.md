@@ -1,13 +1,41 @@
-# dl-reproducibility-pack v3.2
+# dl-reproducibility-pack v3.3
 
-[![version](https://img.shields.io/badge/version-v3.2.0-blue)](https://github.com/yanxiaoxiang123/dl-reproducibility-pack/releases/tag/v3.2.0)
+[![version](https://img.shields.io/badge/version-v3.3.0-blue)](https://github.com/yanxiaoxiang123/dl-reproducibility-pack/releases/tag/v3.3.0)
 [![license](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![tested](https://img.shields.io/badge/tested-RTX%203090%20%C3%972%20%7C%20PyTorch%202.9.1%20%7C%20CUDA%2012.8-brightgreen)]()
 [![python](https://img.shields.io/badge/python-3.8%2B-blue)]()
 [![pytorch](https://img.shields.io/badge/pytorch-1.10%2B-orange)]()
 
 Deep learning reproducibility toolkit for PyTorch and TensorFlow researchers.  
-**v3.2** — 自动检测环境版本，所有功能优雅降级。核心 PyTorch 1.10+，高级 2.0−2.7。
+**v3.3** — navigation-first skill 架构，按需 references，修复梯度累积、评估 loss、benchmark 吞吐量和 Windows/Python 3.8 兼容问题。
+
+---
+
+## v3.3 新增：Skill 瘦身、按需引用与训练可靠性修复 (2026-05-07)
+
+v3.3 把 `SKILL.md` 从长教程改成轻量导航文件，详细知识拆到 `references/` 按需加载，减少上下文占用并提升 agent 执行稳定性。
+
+**结构优化：**
+
+| 变更 | 说明 |
+|------|------|
+| `SKILL.md` navigation-first | 仅保留触发意图、优先级、脚本索引、执行规则和常见任务路线 |
+| `references/audit-workflow.md` | 项目级可复现性审计和改造流程 |
+| `references/pytorch-patterns.md` | PyTorch seeds、DataLoader、checkpoint、metrics、训练循环模式 |
+| `references/distributed-and-performance.md` | DDP/FSDP2、torch.compile、profiling、benchmark 指南 |
+| `references/project-artifacts.md` | README、CITATION、环境锁定、项目结构模板 |
+
+**可靠性修复：**
+
+| 文件 | 修复 |
+|------|------|
+| `reproducibility.py` | 梯度累积最后不足整窗时仍执行 optimizer step，并按实际窗口缩放 loss |
+| `reproducibility.py` | `evaluate()` 改为按样本数加权 validation loss |
+| `profiling.py` | 修正 throughput 高估 `num_runs` 倍的问题，并修正 p95 索引 |
+| `seed_worker.py` / `profiling.py` | 添加 postponed annotations，兼容 Python 3.8 |
+| `compat.py` | 输出改为 ASCII，避免 Windows GBK 控制台 UnicodeEncodeError |
+
+验证：`compileall`、逐文件导入、`scripts/compat.py`、skill validator、梯度累积烟测均通过。
 
 ---
 
@@ -23,7 +51,7 @@ python scripts/compat.py
 输出：
 ```
 ============================================================
-dl-reproducibility-pack — Compatibility Report
+dl-reproducibility-pack - Compatibility Report
 ============================================================
 Component            Detected                       Status
 ------------------------------------------------------------
@@ -32,10 +60,10 @@ PyTorch              PyTorch 2.9.1+cu128            OK
 GPU                  2 GPU(s) (NVIDIA GeForce RTX 3090) OK
 ...
 Feature Availability:
-  torch_compile                  ✓ OK         PyTorch 2.0
-  fsdp2                          ✓ OK         PyTorch 2.4
-  mega_cache                     ✓ OK         PyTorch 2.7
-  mps_support                    ✗ —          PyTorch 1.12 (not on Linux)
+  torch_compile                  OK           PyTorch 2.0
+  fsdp2                          OK           PyTorch 2.4
+  mega_cache                     OK           PyTorch 2.7
+  mps_support                    NO           PyTorch 1.12 (not on Linux)
 ============================================================
 VERDICT: All core features available.
 ```
@@ -102,7 +130,7 @@ v1 (基础)          v2 (d2l-zh 训练设施)        v3 (2025 可复现性标准
                                               安全加载 ★
                                               快速参考 35 项
                                               配置字段 30+ 项
-                                              8 个脚本文件
+                                              6 个脚本文件 + references
 ```
 
 ### v1 → v2 关键变化（10 项）
@@ -207,23 +235,31 @@ your-project/.claude/skills/dl-reproducibility-pack/
 
 ## Components
 
-### SKILL.md (~1400 lines)
+### SKILL.md (navigation-first)
 
-31 topics across 12 major sections — model architecture, weight initialization,
-training & evaluation, metric tracking, gradient management, LR scheduling,
-EMA, multi-GPU & FSDP2, debugging & diagnostics, data pipelines, augmentation,
-checkpointing, environment locking, profiling, tracking, and documentation templates.
+Concise agent instructions for diagnosis, prioritization, bundled script usage,
+and when to load deeper references. Long examples live in `references/` so the
+skill does not overload the context window on every activation.
 
 ### scripts/ (6 files)
 
 | 文件 | 职责 |
 |------|------|
-| `compat.py` | **NEW v3.2** — 版本检测：`check_compatibility()` 一键诊断环境 |
+| `compat.py` | 版本检测：`check_compatibility()` 一键诊断环境 |
 | `reproducibility.py` | Seeds, device, EMA, CosineWarmup, full RNG checkpoint, FSDP2, torch.compile, TorchMetrics, TorchElastic, safe loading |
 | `seed_worker.py` | DataLoader seeding, reproducible loader factory, dataset split management, versioning |
 | `profiling.py` | ProfileContext, BenchmarkTimer, benchmark_model, throughput_report |
 | `tracking.py` | ExperimentTracker (Trackio/MLflow/W&B) |
 | `config.py` | 6 dataclass sections, 30+ fields, YAML I/O, dot-path access |
+
+### references/ (4 files)
+
+| 文件 | 何时读取 |
+|------|----------|
+| `audit-workflow.md` | 项目级可复现性审计和改造 |
+| `pytorch-patterns.md` | PyTorch 训练循环、DataLoader、checkpoint、metrics |
+| `distributed-and-performance.md` | DDP/FSDP2、torch.compile、profiling、benchmark |
+| `project-artifacts.md` | README、CITATION、环境锁定、项目结构 |
 
 ---
 
@@ -330,7 +366,7 @@ from src.seed_worker import (
 )
 from src.profiling import ProfileContext, BenchmarkTimer, benchmark_model   # v3 新增 (#7)
 from src.tracking import ExperimentTracker                                   # v3 新增 (#9)
-from src.compat import check_compatibility                                   # v3.2 新增 (版本诊断)
+from src.compat import check_compatibility                                   # 版本诊断
 ```
 
 ---
